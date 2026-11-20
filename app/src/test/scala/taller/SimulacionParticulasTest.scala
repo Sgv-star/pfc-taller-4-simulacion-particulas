@@ -56,6 +56,39 @@ class SimulacionParticulasTest extends AnyFunSuite {
     assert(pasoSecuencial(vacio, 1.0).isEmpty)
   }
 
+  test("pasoSecuencial: cada partícula usa su propia posición y su propia velocidad") {
+    val trio: Sistema = Array(
+      Particula(Vector2(1, 1), Vector2(2, 0), 1.0),
+      Particula(Vector2(-2, 5), Vector2(0, -1), 2.0),
+      Particula(Vector2(0.5, 0.5), Vector2(-1, -1), 3.0))
+    val esperado = Array(Vector2(7.0, 1.0), Vector2(-2.0, 2.0), Vector2(-2.5, -2.5))
+    assert(pasoSecuencial(trio, 3.0).map(_.pos).sameElements(esperado))
+  }
+
+  test("pasoSecuencial: avanzar dt y retroceder -dt devuelve las posiciones originales") {
+    val ida = pasoSecuencial(grande, 0.7)
+    val vuelta = pasoSecuencial(ida, -0.7)
+    assert(vuelta.zip(grande).forall { case (a, b) => cerca(a.pos, b.pos) })
+  }
+
+  test("pasoSecuencial: en todo el sistema se conservan las velocidades y las masas") {
+    val despues = pasoSecuencial(grande, 1.5)
+    assert(despues.length == grande.length &&
+      despues.zip(grande).forall { case (a, b) => a.vel == b.vel && a.masa == b.masa })
+  }
+
+  test("pasoSecuencial: no modifica el arreglo original") {
+    val antes = grande.map(_.pos)
+    val despues = pasoSecuencial(grande, 2.0)
+    assert(grande.map(_.pos).sameElements(antes) && !(despues eq grande))
+  }
+
+  test("pasoSecuencial: dos pasos de dt equivalen a un paso de 2dt") {
+    val dosPasos = pasoSecuencial(pasoSecuencial(grande, 0.5), 0.5)
+    val unPaso = pasoSecuencial(grande, 1.0)
+    assert(dosPasos.zip(unPaso).forall { case (a, b) => cerca(a.pos, b.pos) })
+  }
+
   test("pasoSegmento: solo calcula el tramo pedido") {
     val tramo = pasoSegmento(s, 1.0, 1, 2)
     assert(tramo.length == 1 && tramo.head.pos == Vector2(4.0, 0.0))
@@ -64,6 +97,34 @@ class SimulacionParticulasTest extends AnyFunSuite {
   test("pasoSegmento: el tramo vacío da un sistema vacío") {
     assert(pasoSegmento(s, 1.0, 1, 1).isEmpty)
   }
+  test("pasoSegmento: un tramo interior coincide con ese mismo tramo del paso completo") {
+    val completo = pasoSecuencial(grande, 0.5)
+    val tramo = pasoSegmento(grande, 0.5, 10, 20)
+    assert(tramo.length == 10 && tramo.sameElements(completo.slice(10, 20)))
+  }
+
+  test("pasoSegmento: el tramo que cubre todo el sistema da el paso secuencial") {
+    assert(pasoSegmento(grande, 0.5, 0, grande.length).sameElements(pasoSecuencial(grande, 0.5)))
+  }
+
+  test("pasoSegmento: la longitud del resultado es hasta menos desde") {
+    val tramos = List((0, 1), (5, 17), (990, 1000), (0, 1000))
+    assert(tramos.forall { case (d, h) => pasoSegmento(grande, 0.5, d, h).length == h - d })
+  }
+
+  test("pasoSegmento: dos tramos contiguos pegados reconstruyen el sistema completo") {
+    val unido = pasoSegmento(grande, 0.5, 0, 400) ++ pasoSegmento(grande, 0.5, 400, 1000)
+    assert(unido.sameElements(pasoSecuencial(grande, 0.5)))
+  }
+
+  test("pasoSegmento: respeta el orden y el intervalo semiabierto [desde, hasta)") {
+    val cinco: Sistema = Array.tabulate(5)(i =>
+      Particula(Vector2(i, i), Vector2(1, 0), 1.0 + i))
+    val tramo = pasoSegmento(cinco, 2.0, 1, 4)
+    assert(tramo.map(_.pos).sameElements(Array(Vector2(3, 1), Vector2(4, 2), Vector2(5, 3))) &&
+      tramo.map(_.masa).sameElements(Array(2.0, 3.0, 4.0)))
+  }
+
 
   test("pasoParalelo: da lo mismo que el secuencial en un caso simple") {
     assert(pasoParalelo(Array(p), 2.0, 1).head.pos == Vector2(2.0, 4.0))
@@ -83,6 +144,37 @@ class SimulacionParticulasTest extends AnyFunSuite {
 
   test("pasoParalelo: con umbral cero no se queda sin fondo") {
     assert(pasoParalelo(Array(p), 1.0, 0).length == 1)
+  }
+  test("pasoParalelo: con tamaño impar y umbral pequeño no pierde ni repite partículas") {
+    val impar: Sistema = Array.tabulate(37)(i =>
+      Particula(Vector2(i, 0), Vector2(1, 1), i + 1.0))
+    val despues = pasoParalelo(impar, 1.0, 3)
+    val posiciones = Array.tabulate(37)(i => Vector2(i + 1.0, 1.0))
+    assert(despues.length == 37 &&
+      despues.map(_.masa).sameElements(impar.map(_.masa)) &&
+      despues.map(_.pos).sameElements(posiciones))
+  }
+
+  test("pasoParalelo: da exactamente lo mismo que el secuencial, incluido umbral igual al tamaño") {
+    val umbrales = List(1, 2, 5, 999, 1000, 4000)
+    val esperado = pasoSecuencial(grande, 0.25)
+    assert(umbrales.forall(u => pasoParalelo(grande, 0.25, u).sameElements(esperado)))
+  }
+
+  test("pasoParalelo: un umbral cero o negativo no se cuelga y da el mismo resultado") {
+    val pequeno: Sistema = grande.take(50)
+    val esperado = pasoSecuencial(pequeno, 0.5)
+    assert(List(0, -1, -100).forall(u => pasoParalelo(pequeno, 0.5, u).sameElements(esperado)))
+  }
+
+  test("pasoParalelo: el sistema vacío da un sistema vacío con cualquier umbral") {
+    assert(List(0, 1, 10).forall(u => pasoParalelo(vacio, 1.0, u).isEmpty))
+  }
+
+  test("pasoParalelo: conserva el orden de las partículas y sus velocidades y masas") {
+    val despues = pasoParalelo(grande, 0.5, 7)
+    assert(despues.length == grande.length &&
+      despues.zip(grande).forall { case (a, b) => a.vel == b.vel && a.masa == b.masa })
   }
 
   // Punto 2 -------------------------------------------------------------------
