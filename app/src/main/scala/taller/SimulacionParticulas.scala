@@ -50,7 +50,7 @@ class SimulacionParticulas {
 
   /** La suma de las energías cinéticas, media masa por velocidad al cuadrado. */
   def energiaSecuencial(s: Sistema): Double = {
-    def energiaDe(p: Particula): Double = 0.5 * p.masa * p.vel.norma * p.vel.norma
+    def energiaDe(p: Particula): Double = (0.5 * p.masa) * (p.vel.norma * p.vel.norma)
 
     def aux(i: Int, acc: Double): Double =
       if (i >= s.length) acc
@@ -60,7 +60,13 @@ class SimulacionParticulas {
   }
 
   /** La suma de las masas. */
-  def masaTotal(s: Sistema): Double = ???
+  def masaTotal(s: Sistema): Double = {
+    def aux(i: Int, acc: Double): Double =
+      if (i >= s.length) acc
+      else aux(i + 1, acc + s(i).masa)
+
+    aux(0, 0.0)
+  }
 
   /**
    * La suma de las posiciones ponderadas por la masa, dividida entre la masa
