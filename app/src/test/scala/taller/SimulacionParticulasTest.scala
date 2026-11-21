@@ -191,12 +191,73 @@ class SimulacionParticulasTest extends AnyFunSuite {
     assert(cerca(energiaSecuencial(Array(s(1))), 0.0))
   }
 
+  test("energiaSecuencial: una sola partícula en movimiento vale media masa por v al cuadrado") {
+    val sola = Array(Particula(Vector2(1, 1), Vector2(2, 0), 4.0))
+    assert(cerca(energiaSecuencial(sola), 0.5 * 4.0 * (2.0 * 2.0)))
+  }
+
+  test("energiaSecuencial: es la suma de las energías y no cambia la masa") {
+    val unaSola = s.map(p => energiaSecuencial(Array(p)))
+    assert(cerca(energiaSecuencial(s), unaSola.sum))
+  }
+
+  test("energiaSecuencial: la masa cuenta y al duplicarla se duplica la energía") {
+    val base = Particula(Vector2(0, 0), Vector2(3, 4), 1.0)
+    val doble = Particula(Vector2(0, 0), Vector2(3, 4), 2.0)
+    assert(cerca(energiaSecuencial(Array(doble)), 2.0 * energiaSecuencial(Array(base))))
+    assert(cerca(energiaSecuencial(Array(base)), 0.5 * 1.0 * (5.0 * 5.0)))
+  }
+
+  test("energiaSecuencial: la velocidad al cuadrado usa la norma, no una componente") {
+    val p = Particula(Vector2(0, 0), Vector2(3, 4), 2.0)
+    val esperado = 0.5 * 2.0 * ((3.0 * 3.0) + (4.0 * 4.0))
+    assert(cerca(energiaSecuencial(Array(p)), esperado))
+    assert(!cerca(energiaSecuencial(Array(p)), 0.5 * 2.0 * (3.0 * 3.0)))
+  }
+
+  test("energiaSecuencial: las partículas quietas no alteran la energía de las que se mueven") {
+    val movil = Particula(Vector2(0, 0), Vector2(0, 6), 1.0)
+    val quieta = Particula(Vector2(9, 9), Vector2(0, 0), 10.0)
+    assert(cerca(energiaSecuencial(Array(movil, quieta)), energiaSecuencial(Array(movil))))
+    assert(cerca(energiaSecuencial(Array(quieta, movil)), energiaSecuencial(Array(movil))))
+  }
+
   test("masaTotal: suma las masas") {
     assert(cerca(masaTotal(s), 4.0))
   }
 
   test("masaTotal: el sistema vacío no tiene masa") {
     assert(masaTotal(vacio) == 0.0)
+  }
+
+  test("masaTotal: una sola partícula devuelve exactamente su masa") {
+    assert(masaTotal(Array(Particula(Vector2(5, 5), Vector2(1, 1), 7.5))) == 7.5)
+  }
+
+  test("masaTotal: no depende de las posiciones ni de las velocidades") {
+    val quieta = Particula(Vector2(0, 0), Vector2(0, 0), 3.0)
+    val rapida = Particula(Vector2(-100, 40), Vector2(9, -9), 3.0)
+    assert(cerca(masaTotal(Array(quieta, rapida)), 6.0))
+    assert(cerca(masaTotal(Array(rapida, quieta)), 6.0))
+  }
+
+  test("masaTotal: es la suma de los pesos uno por uno") {
+    val piezas = Array(0.5, 1.25, 2.0, 0.25)
+    val sistema = piezas.map(m => Particula(Vector2(0, 0), Vector2(0, 0), m))
+    assert(cerca(masaTotal(sistema), piezas.sum))
+  }
+
+  test("masaTotal: sumar la masa del sistema es sumar la masa de sus partes, en cualquier orden") {
+    val izquierda = Array(Particula(Vector2(0, 0), Vector2(0, 0), 1.5))
+    val derecha = Array(
+      Particula(Vector2(0, 0), Vector2(0, 0), 2.5),
+      Particula(Vector2(0, 0), Vector2(0, 0), 4.0))
+    assert(cerca(masaTotal(izquierda ++ derecha), masaTotal(izquierda) + masaTotal(derecha)))
+    assert(cerca(masaTotal(derecha ++ izquierda), masaTotal(izquierda) + masaTotal(derecha)))
+  }
+
+  test("masaTotal: coincide con la masa de la partícula pesada del sistema grande") {
+    assert(cerca(masaTotal(grande), grande.map(_.masa).sum))
   }
 
   test("centroDeMasaSecuencial: el punto medio de dos masas iguales") {
@@ -212,6 +273,51 @@ class SimulacionParticulasTest extends AnyFunSuite {
       Particula(Vector2(0, 0), Vector2(0, 0), 3.0),
       Particula(Vector2(4, 0), Vector2(0, 0), 1.0))
     assert(cerca(centroDeMasaSecuencial(pesado), Vector2(1.0, 0.0)))
+  }
+
+  test("centroDeMasaSecuencial: una sola partícula es su propia posición") {
+    val sola = Array(Particula(Vector2(2.5, -7), Vector2(3, 3), 9.0))
+    assert(cerca(centroDeMasaSecuencial(sola), Vector2(2.5, -7)))
+  }
+
+  test("centroDeMasaSecuencial: con masas iguales es el promedio de las posiciones") {
+    val sistema = Array(
+      Particula(Vector2(-2, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(1, 3), Vector2(5, 5), 1.0),
+      Particula(Vector2(4, 6), Vector2(0, 0), 1.0))
+    assert(cerca(centroDeMasaSecuencial(sistema), Vector2(1.0, 3.0)))
+  }
+
+  test("centroDeMasaSecuencial: usa las dos componentes y no solo la primera") {
+    val sistema = Array(
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(0, 8), Vector2(0, 0), 3.0))
+    assert(cerca(centroDeMasaSecuencial(sistema), Vector2(0.0, 6.0)))
+    assert(!cerca(centroDeMasaSecuencial(sistema), Vector2(0.0, 4.0)))
+  }
+
+  test("centroDeMasaSecuencial: no depende del orden de las partículas") {
+    val a = Particula(Vector2(0, 0), Vector2(0, 0), 1.0)
+    val b = Particula(Vector2(6, 0), Vector2(0, 0), 2.0)
+    val c = Particula(Vector2(3, 9), Vector2(1, 1), 5.0)
+    val esperado = centroDeMasaSecuencial(Array(a, b, c))
+    assert(cerca(centroDeMasaSecuencial(Array(c, b, a)), esperado))
+    assert(cerca(centroDeMasaSecuencial(Array(b, a, c)), esperado))
+  }
+
+  test("centroDeMasaSecuencial: el centro está entre las posiciones y se queda quieto al repetir una partícula") {
+    val sistema = Array(
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(4, 0), Vector2(0, 0), 1.0))
+    val centro = centroDeMasaSecuencial(sistema)
+    assert(centro.x >= 0.0 && centro.x <= 4.0)
+    assert(cerca(centroDeMasaSecuencial(Array(sistema(0), sistema(0), sistema(1))), Vector2(4.0 / 3.0, 0.0)))
+  }
+
+  test("centroDeMasaSecuencial: coincide con la fórmula explícita del sistema grande") {
+    val masa = grande.map(_.masa).sum
+    val suma = grande.foldLeft(Vector2(0, 0))((acc, p) => acc + p.pos * p.masa)
+    assert(cerca(centroDeMasaSecuencial(grande), suma * (1.0 / masa)))
   }
 
   // Punto 3 -------------------------------------------------------------------
