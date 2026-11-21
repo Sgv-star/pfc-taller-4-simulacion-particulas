@@ -72,7 +72,17 @@ class SimulacionParticulas {
    * La suma de las posiciones ponderadas por la masa, dividida entre la masa
    * total. Sin masa, el origen.
    */
-  def centroDeMasaSecuencial(s: Sistema): Vector2 = ???
+  def centroDeMasaSecuencial(s: Sistema): Vector2 = {
+    def aux(i: Int, suma: Vector2, masa: Double): (Vector2, Double) =
+      if (i >= s.length) (suma, masa)
+      else {
+        val p = s(i)
+        aux(i + 1, suma + p.pos * p.masa, masa + p.masa)
+      }
+
+    val (suma, masa) = aux(0, Vector2(0, 0), 0.0)
+    if (masa == 0.0) Vector2(0, 0) else suma * (1.0 / masa)
+  }
 
   // Punto 3: las mismas magnitudes en paralelo --------------------------------
 
