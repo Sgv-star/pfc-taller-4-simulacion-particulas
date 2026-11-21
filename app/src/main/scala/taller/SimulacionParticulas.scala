@@ -3,6 +3,8 @@ package taller
 import common._
 import org.scalameter._
 
+import scala.annotation.tailrec
+
 /**
  * Taller 4 — simulación de partículas repartida entre varios núcleos.
  *
@@ -51,7 +53,7 @@ class SimulacionParticulas {
   /** La suma de las energías cinéticas, media masa por velocidad al cuadrado. */
   def energiaSecuencial(s: Sistema): Double = {
     def energiaDe(p: Particula): Double = (0.5 * p.masa) * (p.vel.norma * p.vel.norma)
-
+    @annotation.tailrec
     def aux(i: Int, acc: Double): Double =
       if (i >= s.length) acc
       else aux(i + 1, acc + energiaDe(s(i)))
@@ -61,6 +63,7 @@ class SimulacionParticulas {
 
   /** La suma de las masas. */
   def masaTotal(s: Sistema): Double = {
+    @annotation.tailrec
     def aux(i: Int, acc: Double): Double =
       if (i >= s.length) acc
       else aux(i + 1, acc + s(i).masa)
@@ -73,6 +76,7 @@ class SimulacionParticulas {
    * total. Sin masa, el origen.
    */
   def centroDeMasaSecuencial(s: Sistema): Vector2 = {
+    @annotation.tailrec
     def aux(i: Int, suma: Vector2, masa: Double): (Vector2, Double) =
       if (i >= s.length) (suma, masa)
       else {
@@ -83,6 +87,7 @@ class SimulacionParticulas {
     val (suma, masa) = aux(0, Vector2(0, 0), 0.0)
     if (masa == 0.0) Vector2(0, 0) else suma * (1.0 / masa)
   }
+
 
   // Punto 3: las mismas magnitudes en paralelo --------------------------------
 
