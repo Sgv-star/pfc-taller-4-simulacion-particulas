@@ -452,6 +452,67 @@ class SimulacionParticulasTest extends AnyFunSuite {
     val casos = for (n <- List(1, 7, 64, 1024); u <- List(1, 8, 64)) yield (n, u)
     assert(casos.forall { case (n, u) => profundidad(n, u) <= trabajo(n) })
   }
+  test("trabajo: sin partículas no hay operaciones") {
+    assert(trabajo(0) == 0)
+  }
+
+  test("trabajo: una partícula es una operación") {
+    assert(trabajo(1) == 1)
+  }
+
+  test("trabajo: un millón de partículas son un millón de operaciones") {
+    assert(trabajo(1000000) == 1000000)
+  }
+
+  test("trabajo: coincide con el tamaño del sistema grande") {
+    assert(trabajo(grande.length) == grande.length)
+  }
+
+  test("trabajo: es aditivo y vale n para varios tamaños, pares e impares") {
+    assert(trabajo(300 + 700) == trabajo(300) + trabajo(700))
+    assert(List(1, 2, 7, 64, 1000).forall(n => trabajo(n) == n))
+  }
+  test("profundidad: una sola partícula no se parte y vale uno") {
+    assert(profundidad(1, 1) == 1)
+  }
+
+  test("profundidad: 16 con umbral 4 parte dos veces y deja un tramo de 4") {
+    assert(profundidad(16, 4) == 6)
+  }
+
+  test("profundidad: con tamaño impar sigue la mitad mayor") {
+    assert(profundidad(7, 1) == 4)
+  }
+
+  test("profundidad: un umbral cero o negativo se comporta como uno") {
+    assert(List(0, -1, -100).forall(u => profundidad(1024, u) == profundidad(1024, 1)))
+  }
+
+  test("profundidad: si el umbral es mayor o igual que n no se parte y vale n") {
+    assert(profundidad(100, 1000) == 100)
+    assert(profundidad(100, 100) == 100)
+  }
+
+  test("tiempoEstimado: 8 partículas, 2 procesadores y umbral 1 dan 8.0") {
+    assert(cerca(tiempoEstimado(8, 2, 1), 8.0))
+  }
+
+  test("tiempoEstimado: sin partir el sistema, la profundidad es n") {
+    assert(cerca(tiempoEstimado(100, 10, 1000), 110.0))
+  }
+
+  test("tiempoEstimado: con tantos procesadores como partículas queda profundidad más uno") {
+    assert(cerca(tiempoEstimado(1024, 1024, 1), 12.0))
+  }
+
+  test("tiempoEstimado: el sistema vacío cuesta cero") {
+    assert(cerca(tiempoEstimado(0, 4, 1), 0.0))
+  }
+
+  test("tiempoEstimado: más procesadores nunca empeoran la estimación") {
+    val tiempos = List(1, 2, 4, 8, 16).map(p => tiempoEstimado(1024, p, 1))
+    assert(tiempos.zip(tiempos.tail).forall { case (a, b) => a >= b })
+  }
 
   // Punto 5 -------------------------------------------------------------------
 
