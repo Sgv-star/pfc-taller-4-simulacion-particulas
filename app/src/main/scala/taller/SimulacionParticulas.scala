@@ -92,13 +92,48 @@ class SimulacionParticulas {
   // Punto 3: las mismas magnitudes en paralelo --------------------------------
 
   /** La energía del sistema, repartida con el mismo umbral del punto 1. */
-  def energiaParalela(s: Sistema, umbral: Int): Double = ???
+  def energiaParalela(s: Sistema, umbral: Int): Double = {
+    def energiaDe(p: Particula): Double = (0.5 * p.masa) * (p.vel.norma * p.vel.norma)
 
+    // Suma secuencial de las energías del tramo [desde, hasta)
+    @tailrec
+    def sumaTramo(i: Int, hasta: Int, acc: Double): Double =
+      if (i >= hasta) acc
+      else sumaTramo(i + 1, hasta, acc + energiaDe(s(i)))
+
+    def resolver(desde: Int, hasta: Int): Double =
+      if (hasta - desde > Math.max(umbral, 1)) {
+        val mitad = desde + (hasta - desde) / 2
+        val (izq, der) = parallel(resolver(desde, mitad), resolver(mitad, hasta))
+        izq + der
+      } else sumaTramo(desde, hasta, 0.0)
+
+    resolver(0, s.length)
+  }
   /**
    * El centro de masa, repartido. Promediar los promedios de cada mitad da
    * otra cosa cuando las dos mitades no pesan igual.
    */
-  def centroDeMasaParalelo(s: Sistema, umbral: Int): Vector2 = ???
+  def centroDeMasaParalelo(s: Sistema, umbral: Int): Vector2 = {
+    // Cada tramo devuelve (suma de posición * masa, masa del tramo)
+    @tailrec
+    def sumaTramo(i: Int, hasta: Int, suma: Vector2, masa: Double): (Vector2, Double) =
+      if (i >= hasta) (suma, masa)
+      else {
+        val p = s(i)
+        sumaTramo(i + 1, hasta, suma + p.pos * p.masa, masa + p.masa)
+      }
+
+    def resolver(desde: Int, hasta: Int): (Vector2, Double) =
+      if (hasta - desde > Math.max(umbral, 1)) {
+        val mitad = desde + (hasta - desde) / 2
+        val (izq, der) = parallel(resolver(desde, mitad), resolver(mitad, hasta))
+        (izq._1 + der._1, izq._2 + der._2)
+      } else sumaTramo(desde, hasta, Vector2(0, 0), 0.0)
+
+    val (suma, masa) = resolver(0, s.length)
+    if (masa == 0.0) Vector2(0, 0) else suma * (1.0 / masa)
+  }
 
   // Punto 4: trabajo y profundidad --------------------------------------------
 

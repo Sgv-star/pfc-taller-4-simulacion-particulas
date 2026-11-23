@@ -357,6 +357,72 @@ class SimulacionParticulasTest extends AnyFunSuite {
   test("centroDeMasaParalelo: sin masa el centro es el origen") {
     assert(centroDeMasaParalelo(vacio, 1) == Vector2(0, 0))
   }
+  test("energiaParalela: tres partículas a mano suman 31 con cualquier umbral") {
+    val tres: Sistema = Array(
+      Particula(Vector2(0, 0), Vector2(3, 4), 2.0),  // 0.5 * 2 * 25 = 25
+      Particula(Vector2(1, 1), Vector2(0, 2), 1.0),  // 0.5 * 1 * 4  = 2
+      Particula(Vector2(2, 2), Vector2(1, 1), 4.0))  // 0.5 * 4 * 2  = 4
+    assert(List(1, 2, 3, 10).forall(u => cerca(energiaParalela(tres, u), 31.0)))
+  }
+
+  test("energiaParalela: con tamaño impar y umbral pequeño no pierde ni repite partículas") {
+    val impar: Sistema = Array.tabulate(37)(i =>
+      Particula(Vector2(i, 0), Vector2(i, 1), i + 1.0))
+    assert(cerca(energiaParalela(impar, 3), energiaSecuencial(impar)))
+  }
+
+  test("energiaParalela: las partículas quietas no alteran la energía de las que se mueven") {
+    val movil = Particula(Vector2(0, 0), Vector2(0, 6), 1.0)   // 0.5 * 1 * 36 = 18
+    val quieta = Particula(Vector2(9, 9), Vector2(0, 0), 10.0)
+    assert(cerca(energiaParalela(Array(movil, quieta, quieta, quieta), 1), 18.0))
+    assert(cerca(energiaParalela(Array(quieta, quieta, movil, quieta), 1), 18.0))
+  }
+
+  test("energiaParalela: un umbral cero o negativo no se cuelga y da el mismo resultado") {
+    val pequeno: Sistema = grande.take(50)
+    val esperado = energiaSecuencial(pequeno)
+    assert(List(0, -1, -100).forall(u => cerca(energiaParalela(pequeno, u), esperado)))
+  }
+
+  test("energiaParalela: no depende del orden de las partículas") {
+    val esperado = energiaSecuencial(grande)
+    assert(cerca(energiaParalela(grande.reverse, 16), esperado))
+    assert(cerca(energiaParalela(grande.reverse, grande.length), esperado))
+  }
+  test("centroDeMasaParalelo: cuatro masas distintas a mano dan (3, 4) con cualquier umbral") {
+    val cuatro: Sistema = Array(
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(4, 0), Vector2(0, 0), 3.0),
+      Particula(Vector2(0, 8), Vector2(0, 0), 1.0),
+      Particula(Vector2(4, 8), Vector2(0, 0), 3.0))
+    assert(List(1, 2, 4, 10).forall(u => cerca(centroDeMasaParalelo(cuatro, u), Vector2(3.0, 4.0))))
+  }
+
+  test("centroDeMasaParalelo: una sola partícula es su propia posición") {
+    val sola = Array(Particula(Vector2(2.5, -7), Vector2(3, 3), 9.0))
+    assert(cerca(centroDeMasaParalelo(sola, 1), Vector2(2.5, -7)))
+  }
+
+  test("centroDeMasaParalelo: una partícula muy pesada domina el centro") {
+    val pesada: Sistema = Array(
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(0, 0), Vector2(0, 0), 1.0),
+      Particula(Vector2(10, 0), Vector2(0, 0), 97.0))
+    assert(List(1, 2, 4).forall(u => cerca(centroDeMasaParalelo(pesada, u), Vector2(9.7, 0.0))))
+  }
+
+  test("centroDeMasaParalelo: si todas las masas son cero el centro es el origen") {
+    val sinMasa: Sistema = Array.tabulate(8)(i =>
+      Particula(Vector2(i, i), Vector2(1, 1), 0.0))
+    assert(centroDeMasaParalelo(sinMasa, 1) == Vector2(0, 0))
+  }
+
+  test("centroDeMasaParalelo: no depende del orden de las partículas ni del umbral") {
+    val esperado = centroDeMasaSecuencial(grande)
+    assert(cerca(centroDeMasaParalelo(grande.reverse, 16), esperado))
+    assert(List(0, -1, 37).forall(u => cerca(centroDeMasaParalelo(grande, u), esperado)))
+  }
 
   // Punto 4 -------------------------------------------------------------------
 
