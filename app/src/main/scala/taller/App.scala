@@ -38,7 +38,8 @@ object App {
     /**
      * Mide las dos versiones pegadas, para que el reloj y la memoria estén en
      * las mismas condiciones, y se queda con el par cuya aceleración es la
-     * mediana. Así una pausa del recolector no decide el resultado.
+     * medianas de los dos tiempos. Así una pausa del recolector no decide el
+     * resultado.
      */
     def medirFila(n: Int, umbral: Int, s: Sistema): Fila = {
       val muestras = Vector.fill(repeticiones) {
@@ -46,8 +47,10 @@ object App {
         val paralelo = medir(1)(pasoParalelo(s, dt, umbral))
         Fila(n, umbral, secuencial, paralelo, aceleracion(secuencial, paralelo))
       }
-      val ordenadas = muestras.sortBy(_.aceleracion)
-      ordenadas.apply(ordenadas.length / 2)
+      val mitad = repeticiones / 2
+      val medianaSec = muestras.map(_.secuencial).sorted.apply(mitad)
+      val medianaPar = muestras.map(_.paralelo).sorted.apply(mitad)
+      muestras.minBy(f => Math.abs(f.secuencial - medianaSec) + Math.abs(f.paralelo - medianaPar))
     }
 
     // El compilador interno necesita ver las dos rutas compiladas antes de la
@@ -58,7 +61,7 @@ object App {
     List(200000, 10000, 500).foreach(u => pasoParalelo(calentamiento, dt, u))
 
     println(s"Núcleos disponibles: ${Runtime.getRuntime.availableProcessors}")
-    println(s"dt = $dt; cada fila es la mediana de $repeticiones pares de mediciones de ScalaMeter, en ms")
+    println(s"dt = $dt; cada fila es el par más cercano a la mediana de $repeticiones pares de mediciones de ScalaMeter, en ms")
     println()
     println("| n | Umbral | Secuencial (ms) | Paralelo (ms) | Aceleración |")
     println("|---:|---:|---:|---:|---:|")
