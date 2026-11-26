@@ -523,6 +523,33 @@ class SimulacionParticulasTest extends AnyFunSuite {
   test("aceleracion: el mismo tiempo da 1.0") {
     assert(cerca(aceleracion(100.0, 100.0), 1.0))
   }
+  test("aceleracion: un tiempo paralelo mayor que el secuencial refleja desaceleracion (< 1)") {
+    assert(cerca(aceleracion(50.0, 200.0), 0.25))
+  }
+
+  test("aceleracion: funciona con valores decimales pequenos en milisegundos") {
+    assert(cerca(aceleracion(0.045, 0.015), 3.0))
+  }
+
+  test("aceleracion: es inversamente proporcional al tiempo paralelo") {
+    val tSeq = 120.0
+    val a1 = aceleracion(tSeq, 30.0)
+    val a2 = aceleracion(tSeq, 60.0)
+    assert(cerca(a1, 2.0 * a2))
+  }
+
+  test("aceleracion: es directamente proporcional al tiempo secuencial") {
+    val tPar = 20.0
+    val a1 = aceleracion(80.0, tPar)
+    val a2 = aceleracion(40.0, tPar)
+    assert(cerca(a1, 2.0 * a2))
+  }
+
+  test("aceleracion: el producto entre la aceleracion y el tiempo paralelo recupera el secuencial") {
+    val tSeq = 73.5
+    val tPar = 14.7
+    assert(cerca(aceleracion(tSeq, tPar) * tPar, tSeq))
+  }
 
   test("umbralConveniente: sin candidatos devuelve el tamaño del sistema") {
     assert(umbralConveniente(grande, 0.5, Nil) == grande.length)
@@ -532,4 +559,31 @@ class SimulacionParticulasTest extends AnyFunSuite {
     val candidatos = List(16, 128, 1024)
     assert(candidatos.contains(umbralConveniente(grande, 0.5, candidatos)))
   }
+  test("umbralConveniente: con un unico candidato devuelve ese mismo valor") {
+    assert(umbralConveniente(grande, 0.5, List(64)) == 64)
+  }
+
+  test("umbralConveniente: sobre un sistema vacio y lista vacia devuelve 0") {
+    assert(umbralConveniente(vacio, 1.0, Nil) == 0)
+  }
+
+  test("umbralConveniente: sobre un sistema vacio con candidatos devuelve uno de ellos sin fallar") {
+    val candidatos = List(1, 10, 100)
+    assert(candidatos.contains(umbralConveniente(vacio, 1.0, candidatos)))
+  }
+
+  test("umbralConveniente: el umbral elegido produce una simulacion valida e identica al secuencial") {
+    val candidatos = List(8, 32, 256, 1000)
+    val elegido = umbralConveniente(grande, 0.25, candidatos)
+    val resPar = pasoParalelo(grande, 0.25, elegido)
+    val resSeq = pasoSecuencial(grande, 0.25)
+    assert(candidatos.contains(elegido) && resPar.sameElements(resSeq))
+  }
+
+  test("umbralConveniente: funciona correctamente con candidatos repetidos o desordenados") {
+    val candidatos = List(500, 10, 500, 1, 250)
+    val elegido = umbralConveniente(grande.take(200), 0.1, candidatos)
+    assert(candidatos.contains(elegido))
+  }
 }
+
