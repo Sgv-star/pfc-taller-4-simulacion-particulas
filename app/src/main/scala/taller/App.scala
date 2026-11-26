@@ -15,8 +15,9 @@ object App {
     import sim._
 
     val dt = 0.01
-    val tamanos = List(1000000, 2000000, 4000000)
-    val divisores = List(8, 64, 512, 4096)
+    val tamanos = List(1000000, 1500000, 2000000)
+    val divisores = List(8, 64, 512)
+    val repeticiones = 7
 
     /** Un sistema grande y parejo, con datos que no dependen de dónde se corte. */
     def sistemaDe(n: Int): Sistema =
@@ -34,20 +35,39 @@ object App {
       s"| ${f.n} | $etiqueta | ${dosDecimales(f.secuencial)} | ${dosDecimales(f.paralelo)} | ${dosDecimales(f.aceleracion)} |"
     }
 
+    /**
+     * Mide las dos versiones pegadas, para que el reloj y la memoria estén en
+     * las mismas condiciones, y se queda con el par cuya aceleración es la
+     * mediana. Así una pausa del recolector no decide el resultado.
+     */
+    def medirFila(n: Int, umbral: Int, s: Sistema): Fila = {
+      val muestras = Vector.fill(repeticiones) {
+        val secuencial = medir(1)(pasoSecuencial(s, dt))
+        val paralelo = medir(1)(pasoParalelo(s, dt, umbral))
+        Fila(n, umbral, secuencial, paralelo, aceleracion(secuencial, paralelo))
+      }
+      val ordenadas = muestras.sortBy(_.aceleracion)
+      ordenadas.apply(ordenadas.length / 2)
+    }
+
+    // El compilador interno necesita ver las dos rutas compiladas antes de la
+    // primera medida; si no, la primera fila paga la compilación y el control
+    // no compara lo mismo.
+    val calentamiento = sistemaDe(200000)
+    pasoSecuencial(calentamiento, dt)
+    List(200000, 10000, 500).foreach(u => pasoParalelo(calentamiento, dt, u))
+
     println(s"Núcleos disponibles: ${Runtime.getRuntime.availableProcessors}")
-    println(s"dt = $dt; cada tiempo es la mediana de 3 mediciones de ScalaMeter, en ms")
+    println(s"dt = $dt; cada fila es la mediana de $repeticiones pares de mediciones de ScalaMeter, en ms")
     println()
     println("| n | Umbral | Secuencial (ms) | Paralelo (ms) | Aceleración |")
     println("|---:|---:|---:|---:|---:|")
 
     val filas = tamanos.flatMap { n =>
+      System.gc()
       val s = sistemaDe(n)
-      val secuencial = medir(3)(pasoSecuencial(s, dt))
-      val umbrales = n :: divisores.map(d => Math.max(n / d, 1))
-      umbrales.map { umbral =>
-        val paralelo = medir(3)(pasoParalelo(s, dt, umbral))
-        Fila(n, umbral, secuencial, paralelo, aceleracion(secuencial, paralelo))
-      }
+      val umbrales = n :: divisores.map(d => n / d)
+      umbrales.map(u => medirFila(n, u, s))
     }
 
     filas.foreach(f => println(textoFila(f)))
