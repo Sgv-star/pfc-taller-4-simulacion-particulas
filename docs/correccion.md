@@ -277,3 +277,101 @@ s_0 = (a_1, \text{List}(a_2, \ldots, a_k)) \implies a_1 = f(\text{List}(a_1))
 $k$ iteraciones, $l = \text{List}()$.
 
 Esto implica que $P_f(L) == \text{maxAux}(L.\text{head}, L.\text{tail}) == f(L)$
+
+## 3. Corrección del Punto 5
+
+### `aceleracion`
+
+La especificación es el cociente entre el tiempo de la versión secuencial y el
+de la paralela. Para $a > 0$ y $b > 0$:
+
+```math
+A(a,b) = \frac{a}{b}
+```
+
+Por sustitución directa, la única regla del programa es la división:
+
+```math
+\mathtt{aceleracion}(a,b) \to a/b = A(a,b)
+```
+
+Luego $\forall a,b > 0 : \mathtt{aceleracion}(a,b) == A(a,b)$. En particular
+$A(a,a) = 1$, que es lo que debe dar la fila de control; $A(a,b) < 1$ cuando
+$b > a$ y $A(a,b) > 1$ cuando $b < a$.
+
+### `umbralConveniente`
+
+Sea $T_u$ el tiempo que mide ScalaMeter para el umbral $u$:
+
+```math
+T_u = \mathtt{medir}(3)\big(\mathtt{pasoParalelo}(s,\Delta t,u)\big)
+```
+
+Para una lista no vacía $L = [u_1, u_2, \ldots, u_k]$ la especificación es
+devolver el candidato de menor tiempo:
+
+```math
+u^\star \in L \quad\land\quad \forall u \in L : T_{u^\star} \le T_u
+```
+
+El programa llama a `elegir(u_1, T_{u_1}, [u_2, \ldots, u_k])`. La invariante
+del auxiliar es:
+
+```math
+\mathrm{Inv}(m,t,C) \equiv t = T_m \;\land\; m \in \{u_1,\ldots,u_k\} \;\land\; \forall u \in C : T_m \le T_u
+```
+
+Es decir, $m$ es el mejor de lo recorrido hasta ahora y $t$ es su tiempo.
+
+**Caso base:** $C = \text{Nil}$. No hay candidatos por comparar y el programa
+devuelve $m$; por la invariante, $m$ es el mejor de la lista completa.
+
+**Paso:** $C = u :: C'$. El programa mide $T_u$ y compara:
+
+```math
+T_u < t \;\Longrightarrow\; \mathrm{Inv}(u, T_u, C')
+\qquad
+T_u \ge t \;\Longrightarrow\; \mathrm{Inv}(m, t, C')
+```
+
+En el primer caso $u$ pasa a ser el mejor y su tiempo es $T_u$; en el segundo
+se conserva $m$, que ya era mejor o igual que $u$. Como la invariante vale al
+entrar y se preserva, al llegar a $\text{Nil}$ el resultado satisface la
+especificación. La recursión es de cola y termina porque la cola $C$ acorta en
+un elemento en cada llamado.
+
+**Lista vacía:** por definición,
+
+```math
+\mathtt{umbralConveniente}(s,\Delta t,\text{Nil}) = |s|
+```
+
+El valor devuelto no pertenece a la lista de candidatos, porque no hay
+candidatos; eso es justo lo que pide el enunciado. Además, con $u = |s|$ no se
+reparte:
+
+```math
+\mathtt{pasoParalelo}(s,\Delta t,|s|)
+= \mathtt{pasoSegmento}(s,\Delta t,0,|s|)
+= \mathtt{pasoSecuencial}(s,\Delta t)
+```
+
+y por lo tanto el tiempo de las dos versiones es el mismo y $A(a,a) = 1$.
+
+### Igualdad de resultados entre la versión secuencial y la paralela
+
+La corrección del reparto no se repite aquí: en `paralelizacion.md` se arguye
+que los tramos $[d,m)$ y $[m,h)$ son disjuntos y cubren $[d,h)$, de modo que
+no se pierde ni se repite ninguna partícula, y que la concatenación es
+asociativa y conserva el orden. Como las hojas de `pasoParalelo` llaman al mismo
+`pasoSegmento` que usa `pasoSecuencial`, ambas devuelven el mismo arreglo para
+cualquier umbral:
+
+```math
+\forall s,\Delta t,u : \mathtt{pasoParalelo}(s,\Delta t,u) == \mathtt{pasoSecuencial}(s,\Delta t)
+```
+
+Lo que cambia con $u$ no es el resultado sino el tiempo. Los tiempos que se
+comparan salen de `medir`, así que dependen de la máquina; las propiedades
+anteriores, no.
+
