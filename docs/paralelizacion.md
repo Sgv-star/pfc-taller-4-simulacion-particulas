@@ -197,3 +197,158 @@ Pasar de 16 a 32 núcleos agregaría 1,4 a la aceleración, menos de lo que se
 ganó entre 4 y 8. En este cálculo esa décima parte está en partir el arreglo y
 combinar los resultados, y en el acceso a una memoria que comparten los
 dieciséis núcleos.
+
+---
+
+## Punto 5: medición en `App.scala`
+
+### La estrategia de reparto
+
+`pasoSecuencial` recorre todo el sistema con `pasoSegmento(s, dt, 0, s.length)`.
+`pasoParalelo` reparte ese mismo recorrido con la abstracción `parallel` del
+paquete `common`, que a su vez usa `task` sobre un `ForkJoinPool`:
+
+- **Dónde se reparte:** en la función local `resolver(desde, hasta)`, dentro de
+  `pasoParalelo`. No se toca el arreglo original.
+- **Criterio de corte:** si `hasta - desde > Math.max(umbral, 1)` se parte por
+  la mitad en `mitad = desde + (hasta - desde) / 2`; si no, se resuelve con
+  `pasoSegmento`, que es la misma función que usa la versión secuencial.
+- **Qué combina:** `izq ++ der`. Los tramos son `[desde, mitad)` y `[mitad,
+  hasta)`, así que no se pierde ni se repite ninguna partícula; la
+  concatenación conserva el orden y es asociativa, por lo que el resultado no
+  depende de qué mitad termine primero:
+
+```math
+(\mathtt{izq} \mathbin{+\!+} \mathtt{centro}) \mathbin{+\!} \mathtt{der}
+= \mathtt{izq} \mathbin{+\!} (\mathtt{centro} \mathbin{+\!} \mathtt{der})
+```
+
+- **Fila de control:** con `umbral = n` la condición de corte es falsa desde el
+  primer llamado, así que no se crea ninguna tarea y no se concatenan arreglos.
+  Las dos versiones ejecutan exactamente el mismo código, y por eso la
+  aceleración debe estar cerca de 1. Esa fila es la que valida que la
+  comparación mide el reparto y no otra cosa.
+
+```mermaid
+graph TD
+    A["pasoParalelo(s, dt, u)"] --> B{"tamaño > max(u,1)?"}
+    B -- no --> C["pasoSegmento: slice + map"]
+    B -- si --> D["parallel(resolver izq, resolver der)"]
+    D --> E["izq ++ der"]
+```
+
+### Cómo se tomaron los tiempos
+
+Cada cifra sale de `medir`, que ya viene en el repositorio y usa
+`withWarmer(new Warmer.Default) measure { cuerpo }`. Antes de medir se corre un
+sistema de 200 000 partículas por las dos rutas para que el compilador interno
+ya tenga el código listo. Para cada fila se repite siete veces el par
+secuencial/paralelo pegado, se calcula `aceleracion` en cada par y se reporta
+el par más cercano a las medianas de los dos tiempos. Así una pausa del
+recolector de basura no decide el resultado.
+
+La máquina informó **16 núcleos**. Los sistemas llevan posiciones, velocidades
+y masas pequeñas y deterministas, `dt = 0.01`, y los tiempos están en
+milisegundos. La corrida se hizo con un heap fijo para que el tamaño del heap
+no cambiara durante las mediciones:
+
+```
+set JAVA_TOOL_OPTIONS=-Xmx2g -XX:+UseParallelGC
+gradlew.bat run
+```
+
+### Las mediciones
+
+Salida literal de `App.scala`:
+
+| n | Umbral | Secuencial (ms) | Paralelo (ms) | Aceleración |
+|---:|---:|---:|---:|---:|
+| 1000000 | 1000000 (control) | 15,31 | 14,64 | 1,05 |
+| 1000000 | 125000 | 15,25 | 10,53 | 1,45 |
+| 1000000 | 15625 | 14,81 | 17,03 | 0,87 |
+| 1000000 | 1953 | 15,02 | 13,11 | 1,15 |
+| 1500000 | 1500000 (control) | 24,77 | 25,12 | 0,99 |
+| 1500000 | 187500 | 24,86 | 17,63 | 1,41 |
+| 1500000 | 23437 | 24,35 | 19,55 | 1,25 |
+| 1500000 | 2929 | 25,94 | 33,17 | 0,78 |
+| 2000000 | 2000000 (control) | 58,58 | 56,04 | 1,05 |
+| 2000000 | 250000 | 32,10 | 33,86 | 0,95 |
+| 2000000 | 31250 | 41,22 | 34,08 | 1,21 |
+| 2000000 | 3906 | 52,40 | 38,91 | 1,35 |
+
+El mejor umbral medido fue 125 000 para un millón de partículas (1,45), 187
+500 para 1,5 millones (1,41) y 3 906 para dos millones (1,35). Los dos
+primeros están en $n/8$; el tercero en $n/512$, aunque en ese tamaño la
+diferencia con $n/64$ es de apenas 0,14 y está dentro del ruido de la medición.
+
+### Comparación con la estimación del punto 4
+
+La estimación es $\mathtt{tiempoEstimado}(n,p,u) = \mathtt{profundidad}(n,u) +
+\mathtt{trabajo}(n)/p$, con $p = 16$. La aceleración estimada es
+$n / \mathtt{tiempoEstimado}(n,16,u)$:
+
+| n | Umbral | profundidad | trabajo / 16 | tiempoEstimado | Acel. estimada | Acel. medida |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1000000 | 1000000 (control) | 1000000 | 62500 | 1062500 | 0,94 | 1,05 |
+| 1000000 | 125000 | 125003 | 62500 | 187503 | 5,33 | 1,45 |
+| 1000000 | 15625 | 15631 | 62500 | 78131 | 12,80 | 0,87 |
+| 1000000 | 1953 | 987 | 62500 | 63487 | 15,75 | 1,15 |
+| 1500000 | 1500000 (control) | 1500000 | 93750 | 1593750 | 0,94 | 0,99 |
+| 1500000 | 187500 | 187503 | 93750 | 281253 | 5,33 | 1,41 |
+| 1500000 | 23437 | 11726 | 93750 | 105476 | 14,22 | 1,25 |
+| 1500000 | 2929 | 1475 | 93750 | 95225 | 15,75 | 0,78 |
+| 2000000 | 2000000 (control) | 2000000 | 125000 | 2125000 | 0,94 | 1,05 |
+| 2000000 | 250000 | 250003 | 125000 | 375003 | 5,33 | 0,95 |
+| 2000000 | 31250 | 31256 | 125000 | 156256 | 12,80 | 1,21 |
+| 2000000 | 3906 | 1964 | 125000 | 126964 | 15,75 | 1,35 |
+
+Se parecen en la forma: sin reparto las dos cifras están cerca de 1, y repartir
+con tramos grandes mejora el tiempo. Se separan en la magnitud y en la
+tendencia: la estimación sube hasta 15,75 porque supone que los 16 núcleos están
+siempre ocupados y que crear una tarea y pegar dos arreglos no cuesta nada. El
+reloj incluye esas dos cosas, el acceso a una memoria compartida, el recolector
+de basura y el hecho de que el `ForkJoinPool` del curso no tiene exactamente 16
+trabajadores. Incluso la fila de control sale de la estimación en 0,94, porque
+el modelo suma $\mathtt{trabajo}/p$ aunque no haya reparto; la medición, en
+cambio, da entre 0,99 y 1,05 alrededor de 1. La estimación sirve para comparar
+umbrales entre sí y como techo optimista, no como pronóstico.
+
+### Lo que dicen los números
+
+Las filas de control dan 1,05, 0,99 y 1,05: están a un 5 % de 1. Como las dos
+rutas son el mismo `pasoSegmento`, esa cercanía dice que la comparación es
+justa. La pequeña diferencia que queda viene del reloj y del recolector, no de
+trabajo distinto.
+
+Repartir sí paga, pero poco: el mejor umbral de cada tamaño ronda 1,35-1,45,
+mientras que el control ronda 1. No hay una regla única para el umbral: en un
+millón y en 1,5 millones el mejor fue $n/8$; en dos millones fue $n/512$,
+aunque allí $n/64$ queda a 0,14 y esa diferencia está dentro del ruido. Lo que
+sí se ve es que repartir con tramos grandes supera al control, y que los umbrales
+muy pequeños no garantizan ganancia (0,87 con 15 625 en un millón, 0,78 con
+2 929 en 1,5 millones). Crear tareas y pegar arreglos cuesta, y no siempre se
+recupera con el tramo que se ahorra.
+
+La aceleración deja de crecer al agregar núcleos porque una parte del cálculo
+sigue siendo serie: `slice`, `++`, la creación de tareas y el acceso a memoria
+compartida no se reparten. Con la mejor aceleración medida, $S = 1{,}45$ sobre
+$p = 16$, y la ley de Amdahl en la forma del enunciado, con $g$ la fracción que
+sí se reparte:
+
+```math
+S = \frac{1}{(1-g) + \frac{g}{p}}
+\qquad\Longrightarrow\qquad
+g = \frac{1 - \frac{1}{S}}{1 - \frac{1}{p}} = 0{,}33
+```
+
+La fracción que **no** se reparte es $1 - g = 0{,}67$: cerca de dos terceras
+partes del tiempo medido se comportan en serie. Con esa fracción, el techo al
+agregar núcleos es:
+
+| p | 2 | 4 | 8 | 16 | 32 | ∞ |
+|---:|---:|---:|---:|---:|---:|---:|
+| Aceleración máxima | 1,20 | 1,33 | 1,41 | 1,45 | 1,47 | 1,49 |
+
+Pasar de 16 a 32 núcleos sólo añadiría 0,02 de aceleración. Eso explica por
+qué bajar el umbral y multiplicar tareas no mejora la tabla: lo que limita no
+es falta de núcleos, sino la parte que no se puede partir y el costo de partir.
