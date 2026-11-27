@@ -21,6 +21,10 @@ Este informe argumenta, con notación matemática, que cada función de `Simulac
 - $`\Delta t`$ es el parámetro `dt`.
 - $`u`$ es el parámetro `umbral` y $`u' = \max(u, 1)`$ es el umbral que realmente compara el código.
 - $`\lfloor x \rfloor`$ y $`\lceil x \rceil`$ son el piso y el techo. En Scala, con enteros, `k / 2` es $`\lfloor k/2 \rfloor`$ y `k - k / 2` es $`\lceil k/2 \rceil`$.
+- **Sistema de ejemplo.** Salvo que se diga otra cosa, los ejemplos numéricos usan
+  el sistema de dos partículas de las pruebas:
+  $`p_0 = ((0,0),(3,4),2)`$ y $`p_1 = ((4,0),(0,0),2)`$. `proceso.md` usa además un
+  sistema de cuatro partículas como ejemplo didáctico.
 - **Sobre `parallel`.** `parallel(a, b)` devuelve el par formado por los valores de `a` y de `b`. Las funciones del taller solo leen `s` y no tienen variables mutables, así que evaluar `a` y `b` en paralelo da el mismo par que evaluarlas una tras otra. Por eso se puede razonar con el modelo de sustitución como en un programa secuencial:
 
 $$
@@ -223,7 +227,7 @@ $$
 - **Al final.** Si $`i \ge n`$ y $`i \le n`$ entonces $`i = n`$, y $`acc = \sum_{j=0}^{n-1} m_j = M(s)`$.
 - **Termina.** $`n - i`$ es un entero no negativo que baja en $`1`$ en cada llamada.
 
-Con $`s`$ vacío devuelve $`0`$. Con el sistema del enunciado, $`2 + 2 = 4`$.
+Con $`s`$ vacío devuelve $`0`$. Con el sistema de ejemplo de dos partículas, $`2 + 2 = 4`$.
 
 ### 3.2 `energiaSecuencial`
 

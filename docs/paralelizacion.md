@@ -27,11 +27,11 @@ solo cambia **cuándo y cómo se mide**, no **qué se mide**.
 ```Scala
 import org.scalameter._
 
-/** `Warmer.Default` pero con un techo de calentamientos apto para este equipo. */
-class WarmerCorto(corridas: Int) extends Warmer {
+/** `Warmer.Default` con el calentamiento acotado por `config` (sección 0.1). */
+class WarmerCorto extends Warmer {
   private val base = Warmer.Default()
 
-  def name: String = s"WarmerCorto($corridas)"
+  def name: String = "WarmerCorto"
 
   def warming(ctx: Context, setup: () => Any, teardown: () => Any): Foreach[Int] =
     base.warming(ctx + (Key.exec.requireGC -> false), setup, teardown)
@@ -44,7 +44,7 @@ class WarmerCorto(corridas: Int) extends Warmer {
  */
 def medirCorto[A](cuerpo: => A): Double = {
   val base = org.scalameter
-    .withWarmer(new WarmerCorto(12))
+    .withWarmer(new WarmerCorto)
     .withMeasurer(org.scalameter.MeasureBuilder.timeMeasurer)
     .config(Key.verbose := false, Key.exec.benchRuns := 5, Key.exec.requireGC := false,
       Key.exec.minWarmupRuns := 12, Key.exec.maxWarmupRuns := 12)
@@ -73,7 +73,9 @@ cálculo de la aceleración son los del repositorio.
 ### 0.3 Cómo reproducirla
 
 Para volver a tomar estos números en una máquina con más recursos, basta con
-`./gradlew run` sobre el `App.scala` original. En este equipo hay que aplicar el
+ejecutar el `App.scala` original (`.\gradlew.bat run` en Windows, `./gradlew run`
+en Linux o macOS) en una máquina donde `Warmer.Default` termine en un tiempo
+razonable. En este equipo hay que aplicar el
 protocolo de la sección 0.1 sobre una copia del archivo, o usarlo desde una clase
 aparte, porque el `Warmer.Default` original no termina aquí. Con el protocolo, la
 corrida completa dura **alrededor de 5 minutos y medio**.
@@ -176,7 +178,8 @@ versión secuencial, la misma cuenta se hace en un solo recorrido con
 
 ## 2. La tabla de tiempos
 
-Salida de `App.scala` (milisegundos, `dt = 0.01`). La fila marcada como
+Salida del protocolo de la sección 0.1 aplicado sobre una copia de `App.scala`
+(milisegundos, `dt = 0.01`). La fila marcada como
 *(control)* no reparte nada:
 
 | n | Umbral | Secuencial (ms) | Paralelo (ms) | Aceleración |
@@ -205,6 +208,9 @@ abiertos). Las dos corridas coinciden en lo esencial:
 | 2000000 | 2000000 (control) | 1,03 | 1,18 |
 | 2000000 | 31250 | 0,69 | 0,62 |
 
+La segunda corrida solo repitió estas cinco filas representativas, no la tabla
+completa.
+
 Los controles se mantienen alrededor de 1 en las dos corridas, y el único umbral
 que gana de forma consistente es `n/8` con un millón de partículas. El resto de
 las diferencias queda dentro del ruido de un equipo de dos núcleos.
@@ -213,7 +219,7 @@ las diferencias queda dentro del ruido de un equipo de dos núcleos.
 
 La estimación del punto 4 es
 `tiempoEstimado(n, p, u) = profundidad(n, u) + trabajo(n)/p`. Con **p = 4**, que
-son los hilos reales de este equipo, la aceleración estimada es
+son los 4 hilos lógicos (2 núcleos físicos) de este equipo, la aceleración estimada es
 `n / tiempoEstimado(n, 4, u)`:
 
 | n | Umbral | profundidad | trabajo / 4 | tiempoEstimado | Acel. estimada | Acel. medida |
@@ -271,7 +277,7 @@ que los grandes. Con `n/512` (1953, 2929, 3906) la aceleración cae a 0,83, 0,69
 independientemente de cuántas partículas ahorre.
 
 **Por qué la aceleración deja de crecer.** Aunque se agreguen núcleos, la
-aceleración no sube porque una parte del cálculo sigue siendo seria: los `slice`,
+aceleración no sube porque una parte del cálculo sigue siendo en serie: los `slice`,
 los `++`, la creación de tareas y el acceso a memoria compartida se ejecutan
 siempre en un solo hilo. Con la mejor aceleración medida, $`S = 1{,}24`$ sobre
 $`p = 4`$, la ley de Amdahl da la fracción que **sí** se reparte:
